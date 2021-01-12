@@ -147,7 +147,6 @@ def imaging(input_model, reference_files):
                             (sca, det2gwa),
                             (gwa, gwa2msa),
                             (msa_frame, None)]
-        # TODO: Add DVA correction
 
     return imaging_pipeline
 
@@ -237,7 +236,6 @@ def ifu(input_model, reference_files, slit_y_range=[-.55, .55]):
                     (slit_frame, slit2slicer),
                     ('slicer', slicer2msa),
                     (msa_frame, None)]
-        # TODO: Add DVA correction
     else:
         # MSA to OTEIP transform
         msa2oteip = ifu_msa_to_oteip(reference_files)
@@ -352,7 +350,6 @@ def slitlets_wcs(input_model, reference_files, open_slits_id):
                         (gwa, gwa2slit),
                         (slit_frame, slit2msa),
                         (msa_frame, None)]
-        # TODO: Add DVA correction
     else:
         # MSA to OTEIP transform
         msa2oteip = msa_to_oteip(reference_files)

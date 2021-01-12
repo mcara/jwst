@@ -1,13 +1,8 @@
-from copy import deepcopy
 import numpy as np
 from astropy import units as u
 from astropy import coordinates as coords
 from astropy.modeling import models as astmodels
-from astropy.modeling import CompoundModel
-from astropy.modeling.models import (
-    AffineTransformation2D, Scale, Identity, Mapping, Const1D,
-    RotationSequence3D
-)
+from astropy.modeling.models import Scale, Identity, RotationSequence3D
 from astropy.coordinates.matrix_utilities import rotation_matrix, matrix_product
 from gwcs import utils as gwutils
 from gwcs.geometry import SphericalToCartesian, CartesianToSpherical
@@ -15,9 +10,6 @@ from gwcs import coordinate_frames as cf
 from gwcs import wcs
 
 from stdatamodels import DataModel
-
-_RAD2ARCSEC = 3600.0 * np.rad2deg(1.0)
-_ARCSEC2RAD = 1.0 / _RAD2ARCSEC
 
 
 __all__ = ["compute_roll_ref", "frame_from_model", "fitswcs_transform_from_model"]
@@ -319,7 +311,7 @@ def va_corr_model(datamodel, **kwargs):
     va_scale_corr.name = 'va_scale_2D'
 
     rot = RotationSequence3D(
-        [v2_ref, -v3_ref],
+        [v2_ref / 3600.0, -v3_ref / 3600.0],
         'zy',
         name='det_to_optic_axis'
     )
