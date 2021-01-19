@@ -280,7 +280,7 @@ def va_corr_model(datamodel, **kwargs):
                 "'v2_ref', 'v3_ref', and 'va_scale' are all required when "
                 "'datamodel' is set to None."
             )
-        except TypeError:
+        except ValueError:
             raise TypeError(
                 "'v2_ref', 'v3_ref', and 'va_scale' must be numbers."
             )
