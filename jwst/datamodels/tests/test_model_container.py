@@ -18,6 +18,7 @@ ROOT_DIR = os.path.join(os.path.dirname(__file__), 'data')
 FITS_FILE = os.path.join(ROOT_DIR, 'test.fits')
 ASN_FILE = os.path.join(ROOT_DIR, 'association.json')
 CUSTOM_GROUP_ID_ASN_FILE = os.path.join(ROOT_DIR, 'association_group_id.json')
+CUSTOM_BKG_ASN_FILE = os.path.join(ROOT_DIR, 'association_background.json')
 
 
 @pytest.fixture
@@ -125,6 +126,26 @@ def test_group_id(tmp_path):
             model_droup_ids.add(m.meta.group_id)
 
     assert asn_group_ids == model_droup_ids
+
+
+def test_custom_background(tmp_path):
+    c = ModelContainer(CUSTOM_BKG_ASN_FILE)
+
+    truth = [
+        {"method": "user", "level": 1.234, "subtracted": False},
+        {"method": "user", "level": 1.234, "subtracted": False},
+        {"method": "user", "level": 0.0, "subtracted": True},
+        {"method": "user", "level": 1.234, "subtracted": True},
+        {"method": "user", "level": 1.234, "subtracted": False},
+        {"method": "user", "level": 0.0, "subtracted": False},
+    ]
+    for m, t in zip(c, truth):
+        assert m.meta.background.method is t["method"]
+        assert m.meta.background.subtracted is t["subtracted"]
+        if t["level"] is None:
+            assert m.meta.background.level is None
+        else:
+            assert abs(m.meta.background.level - t["level"]) < 1.0e-12
 
 
 @pytest.mark.parametrize("path", ["foo", "foo.fits"])

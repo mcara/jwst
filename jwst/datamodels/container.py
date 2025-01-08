@@ -14,7 +14,13 @@ __doctest_skip__ = ['ModelContainer']
 
 __all__ = ['ModelContainer']
 
-RECOGNIZED_MEMBER_FIELDS = ['tweakreg_catalog', 'group_id']
+RECOGNIZED_MEMBER_FIELDS = [
+    'tweakreg_catalog',
+    'group_id',
+    'background_subtracted',
+    'background_level',
+]
+
 EMPTY_ASN_TABLE = {
     "asn_id": None,
     "asn_pool": None,
@@ -146,6 +152,8 @@ to supply custom catalogs.
         self.asn_pool_name = None
         self.asn_file_path = None
 
+        self.user_sky_background = False
+
         self._memmap = kwargs.get("memmap", False)
 
         if init is None:
@@ -275,6 +283,14 @@ to supply custom catalogs.
             infiles = [member for member
                        in asn_data['products'][0]['members']]
 
+        # check that user provides custom sky background:
+        self.user_sky_background = False
+        for member in asn_data['products'][0]['members']:
+            for key in member:
+                if key.startswith("background_"):
+                    self.user_sky_background = True
+                    break
+
         if self.asn_file_path:
             asn_dir = op.dirname(self.asn_file_path)
         else:
@@ -285,20 +301,39 @@ to supply custom catalogs.
             sublist = infiles[:self.asn_n_members]
         else:
             sublist = infiles
+
         try:
             for member in sublist:
                 filepath = op.join(asn_dir, member['expname'])
                 m = datamodel_open(filepath, memmap=self._memmap)
                 m.meta.asn.exptype = member['exptype']
+
+                if self.user_sky_background:
+                    # set defaults:
+                    m.meta.background.method = "user"
+                    m.meta.background.level = 0.0
+                    m.meta.background.subtracted = False
+
                 for attr, val in member.items():
                     if attr in RECOGNIZED_MEMBER_FIELDS:
+                        meta_branch = m.meta
+
                         if attr == 'tweakreg_catalog':
                             if val.strip():
                                 val = op.join(asn_dir, val)
                             else:
                                 val = None
 
-                        setattr(m.meta, attr, val)
+                        elif attr.startswith("background_"):
+                            meta_branch = m.meta.background
+                            attr = attr.split('_')[1]
+                            if attr == "level":
+                                val = float(val)
+                            elif attr == "subtracted":
+                                val = bool(val)
+
+                        setattr(meta_branch, attr, val)
+
                 self._models.append(m)
 
         except IOError:

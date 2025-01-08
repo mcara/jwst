@@ -76,6 +76,24 @@ class SkyMatchStep(Step):
         else:
             library = ModelLibrary(input, on_disk=not self.in_memory)
 
+        # check if user set custom sky values:
+        user_set_sky = False
+        with library:
+            for k, im in enumerate(library):
+                if im.meta.background.method == "user":
+                    user_set_sky = True
+                    im.meta.cal_step.skymatch = "SKIPPED"
+                    self.log.warning(
+                        f"Sky background level for image #{k:d} set by the "
+                        f"user to: {im.meta.background.method}"
+                    )
+
+        if user_set_sky:
+            self.log.warning(
+                "Skipping SkyMatchStep since sky level was set by the user."
+            )
+            return library
+
         self._dqbits = interpret_bit_flags(self.dqbits, flag_name_map=pixel)
 
         # set sky statistics:
@@ -90,6 +108,7 @@ class SkyMatchStep(Step):
         )
 
         images = []
+
         with library:
             for group_index, (group_id, group_inds) in enumerate(library.group_indices.items()):
                 sky_images = []
