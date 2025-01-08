@@ -84,9 +84,22 @@ class SkyMatchStep(Step):
                     user_set_sky = True
                     im.meta.cal_step.skymatch = "SKIPPED"
                     self.log.warning(
-                        f"Sky background level for image #{k:d} set by the "
-                        f"user to: {im.meta.background.method}"
+                        f"Sky background level for image #{k + 1:d},  "
+                        f"filename='{im.meta.filename}', set by the "
+                        f"user to: {im.meta.background.level}"
                     )
+                    if (self.subtract and
+                            im.meta.background.subtracted is not None and
+                            not im.meta.background.subtracted and
+                            im.meta.background.level is not None):
+                        im.meta.background.subtracted = True
+                        im.data -= im.meta.background.level
+                        self.log.info(
+                            "Subtracted user-provided sky background level "
+                            f"{im.meta.background.level} for image #{k + 1:d}, "
+                            f"filename='{im.meta.filename}'."
+                        )
+                library.shelve(im)
 
         if user_set_sky:
             self.log.warning(

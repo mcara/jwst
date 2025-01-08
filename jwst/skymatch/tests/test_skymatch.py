@@ -448,6 +448,106 @@ def test_asn_input(tmp_cwd, nircam_rate, tmp_path):
             result.shelve(im, modify=False)
 
 
+def test_asn_input_custom_sky(tmp_cwd, nircam_rate, tmp_path):
+    # This is the same test as 'test_skymatch_overlap' with
+    # skymethod='match', subtract=True, skystat='mean' and with memory saving
+    # feature enabled (data loaded from files as needed).
+    np.random.seed(1)
+    im1 = nircam_rate.copy()
+    im2 = im1.copy()
+    im3 = im1.copy()
+    im4 = im1.copy()
+
+    im1.meta.group_id = "A"
+    im2.meta.group_id = "B"
+    im3.meta.group_id = "A"
+    im4.meta.group_id = "B"
+
+    im1.meta.filename = "skymatch_im1.fits"
+    im2.meta.filename = "skymatch_im2.fits"
+    im3.meta.filename = "skymatch_im3.fits"
+    im4.meta.filename = "skymatch_im4.fits"
+
+    # add "bad" data
+    im1, dq_mask = _add_bad_pixels(im1, 1e6, 1e9)
+    im2, _ = _add_bad_pixels(im2, 5e6, 3e9)
+    im3, _ = _add_bad_pixels(im3, 7e6, 1e8)
+
+    # rotate images so that corner SATURATED pixels are not in the overlap
+    # region:
+    im2.meta.wcs = adjust_wcs(im2.meta.wcs, delta_roll=30)
+    im3.meta.wcs = adjust_wcs(im3.meta.wcs, delta_roll=60)
+
+    container = ModelContainer([im1, im2, im3, im4])
+
+    # define some background:
+    levels = {
+        im1.meta.filename: 9.12,
+        im2.meta.filename: 8.28,
+        im3.meta.filename: 2.56,
+        im4.meta.filename: 7.22,
+    }
+    user_levels = {
+        im1.meta.filename: 9.12,
+        im2.meta.filename: 0.0,
+        im3.meta.filename: 2.73,
+        im4.meta.filename: 3.14,
+    }
+
+    for im in container:
+        lev = levels[im.meta.filename]
+        im.data += np.random.normal(loc=lev, scale=0.1, size=im.data.shape)
+
+    im1.write(im1.meta.filename)
+    im2.write(im2.meta.filename)
+    im3.write(im3.meta.filename)
+    im4.write(im4.meta.filename)
+
+    assoc_out = asn_from_list(
+        [im1.meta.filename, im2.meta.filename, im3.meta.filename, im4.meta.filename],
+        rule=DMS_Level3_Base,
+        product_name='skymatch'
+    )
+    for member in assoc_out['products'][0]['members']:
+        lev = user_levels[member["expname"]]
+        member["background_level"] = lev
+
+    asn_out_fname, out_serialized = assoc_out.dump(format='json')
+    asn_out_fname = asn_out_fname
+    with open(asn_out_fname, "w") as asn_out:
+        asn_out.write(out_serialized)
+
+    # We do not exclude SATURATED pixels. They should be ignored because
+    # images are rotated and SATURATED pixels in the corners are not in the
+    # common intersection of all input images. This is the purpose of this test
+    step = SkyMatchStep(
+        skymethod='match',
+        match_down=True,
+        subtract=True,
+        skystat='mean',
+        nclip=0,
+        dqbits='~DO_NOT_USE'  # specifically DO NOT add 'SATURATED' flag
+    )
+
+    result = step.run(asn_out_fname)
+
+    ref_levels = {k: levels[k] - user_levels[k] for k in levels}
+
+    with result:
+        for im in result:
+            # check that meta was set correctly:
+            assert im.meta.background.method == 'user'
+            assert im.meta.background.subtracted is True
+            fname = im.meta.filename
+
+            # test user sky values:
+            assert abs(im.meta.background.level - user_levels[fname]) < 0.0001
+
+            # test
+            assert abs(np.mean(im.data[dq_mask]) - ref_levels[fname]) < 0.01
+            result.shelve(im, modify=False)
+
+
 @pytest.mark.parametrize(
     'skymethod, subtract',
     tuple(
