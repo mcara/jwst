@@ -1,4 +1,5 @@
 import json
+import os
 
 import pytest
 import stdatamodels.jwst.datamodels
@@ -18,6 +19,9 @@ _OBSERVATION_NUMBERS = ['1', '1', '2']
 _N_MODELS = len(_OBSERVATION_NUMBERS)
 _PRODUCT_NAME = "foo_out"
 _POOL_NAME = "some_pool"
+
+_ROOT_DIR = os.path.join(os.path.dirname(__file__), 'data')
+_CUSTOM_BKG_ASN_FILE = os.path.join(_ROOT_DIR, 'association_background.json')
 
 
 @pytest.fixture
@@ -147,3 +151,25 @@ def test_asn_attributes_assignment(example_library):
             assert model.meta.asn.table_name.startswith(expected_table_name)
             assert model.meta.asn.pool_name == _POOL_NAME
             example_library.shelve(model, i, modify=False)
+
+
+def test_custom_background(tmp_path):
+    library = ModelLibrary(_CUSTOM_BKG_ASN_FILE)
+
+    truth = [
+        {"method": "user", "level": 1.234, "subtracted": False},
+        {"method": "user", "level": 1.234, "subtracted": False},
+        {"method": "user", "level": 0.0, "subtracted": True},
+        {"method": "user", "level": 1.234, "subtracted": True},
+        {"method": "user", "level": 1.234, "subtracted": False},
+        {"method": "user", "level": 0.0, "subtracted": False},
+    ]
+    with library:
+        for m, t in zip(library, truth):
+            assert m.meta.background.method is t["method"]
+            assert m.meta.background.subtracted is t["subtracted"]
+            if t["level"] is None:
+                assert m.meta.background.level is None
+            else:
+                assert abs(m.meta.background.level - t["level"]) < 1.0e-12
+            library.shelve(m)

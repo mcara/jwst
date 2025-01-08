@@ -6,6 +6,7 @@ from stdatamodels.jwst.datamodels.util import open as datamodels_open
 from stpipe.library import AbstractModelLibrary, NoGroupID
 
 from jwst.associations import AssociationNotValidError, load_asn
+from jwst.datamodels.container import RECOGNIZED_MEMBER_FIELDS
 
 __all__ = ["ModelLibrary"]
 
@@ -47,6 +48,19 @@ class ModelLibrary(AbstractModelLibrary):
         Library does NOT need to be open (i.e., this can be called outside the `with` context)
         """
         return [i for i, member in enumerate(self._members) if member["exptype"].lower() == exptype.lower()]
+
+    def has_user_sky(self):
+        if hasattr(self, "_has_user_sky"):
+            return self._has_user_sky
+
+        for member in self._members:
+            for key in member:
+                if key.startswith("background_"):
+                    self._has_user_sky = True
+                    return True
+
+        self._has_user_sky = False
+        return False
 
     def _model_to_filename(self, model):
         model_filename = model.meta.filename
@@ -127,16 +141,34 @@ class ModelLibrary(AbstractModelLibrary):
 
     def _assign_member_to_model(self, model, member):
         model.meta.asn.exptype = member["exptype"]
-        for attr in ("group_id", "tweakreg_catalog"):
+        if self.has_user_sky():
+            # set defaults for sky levels:
+            model.meta.background.method = "user"
+            model.meta.background.level = 0.0
+            model.meta.background.subtracted = False
+
+        for attr in RECOGNIZED_MEMBER_FIELDS:
             if attr in member:
-                setattr(model.meta, attr, member[attr])
+                if attr.startswith("background_"):
+                    meta_branch = model.meta.background
+                    asn_val = member[attr]
+                    attr = attr.split('_')[1]
+                    if attr == "level":
+                        val = float(asn_val)
+                    elif attr == "subtracted":
+                        val = bool(asn_val)
+                else:
+                    meta_branch = model.meta
+                    val = member[attr]
+                setattr(meta_branch, attr, val)
+
         if not hasattr(model.meta, "asn"):
             model.meta["asn"] = {}
 
         if "table_name" in self.asn.keys():
             setattr(model.meta.asn, "table_name", self.asn["table_name"])
 
-        if "asn_pool" in self.asn.keys(): # do not clobber existing values
+        if "asn_pool" in self.asn.keys():  # do not clobber existing values
             setattr(model.meta.asn, "pool_name", self.asn["asn_pool"])
 
 
