@@ -4,7 +4,6 @@ import gc
 import logging
 from pathlib import Path
 
-import gwcs
 import photutils
 import stcal.tweakreg.tweakreg as twk
 from astropy.table import Table
